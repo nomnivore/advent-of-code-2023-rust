@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use regex::Regex;
+
 advent_of_code::solution!(1);
 
 pub fn part_one(input: &str) -> Option<u32> {
@@ -45,8 +47,43 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(total)
 }
 
-pub fn part_two(_input: &str) -> Option<u32> {
-    todo!()
+pub fn part_two(input: &str) -> Option<u32> {
+    let mut calibrations: Vec<u32> = vec![];
+    let reg = Regex::new(r"(?<cstr>\d|one|two|three|four|five|six|seven|eight|nine)").unwrap();
+
+    for line in input.lines() {
+        let cstrs: Vec<&str> = reg
+            .captures_iter(line)
+            .map(|c| {
+                let cstr = c.name("cstr").unwrap().as_str();
+                match cstr {
+                    "one" => "1",
+                    "two" => "2",
+                    "three" => "3",
+                    "four" => "4",
+                    "five" => "5",
+                    "six" => "6",
+                    "seven" => "7",
+                    "eight" => "8",
+                    "nine" => "9",
+                    _ => cstr,
+                }
+            })
+            .collect();
+
+        let (first, last) = (cstrs.first().unwrap(), cstrs.last().unwrap());
+        let num_str = format!("{first}{last}");
+        let num = u32::from_str(&num_str).unwrap();
+
+        calibrations.push(num);
+    }
+
+    let mut total: u32 = 0;
+    for num in calibrations {
+        total += num;
+    }
+
+    Some(total)
 }
 
 #[cfg(test)]
@@ -75,6 +112,6 @@ xtwone3four
 zoneight234
 7pqrstsixteen",
         );
-        assert_eq!(result, None);
+        assert_eq!(result, Some(281));
     }
 }
