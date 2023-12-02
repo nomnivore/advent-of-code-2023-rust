@@ -55,13 +55,26 @@ mod tests {
 
     #[test]
     fn test_part_one() {
-        let result = part_one(&advent_of_code::template::read_file("examples", DAY));
+        let result = part_one(
+            "1abc2
+pqr3stu8vwx
+a1b2c3d4e5f
+treb7uchet",
+        );
         assert_eq!(result, Some(142));
     }
 
     #[test]
     fn test_part_two() {
-        let result = part_two(&advent_of_code::template::read_file("examples", DAY));
+        let result = part_two(
+            "two1nine
+eightwothree
+abcone2threexyz
+xtwone3four
+4nineeightseven2
+zoneight234
+7pqrstsixteen",
+        );
         assert_eq!(result, None);
     }
 }
