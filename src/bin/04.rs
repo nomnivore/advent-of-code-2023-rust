@@ -9,47 +9,50 @@ struct Card<'a> {
     card_nums: Vec<&'a str>,
 }
 
+trait Scorable {
+    fn points(&self) -> u32;
+}
+
+impl<'a> Scorable for Card<'a> {
+    fn points(&self) -> u32 {
+        self.card_nums
+            .iter()
+            .filter(|num| self.win_nums.get(*num).is_some())
+            .collect::<Vec<&&str>>()
+            .len()
+            .try_into()
+            .unwrap_or(0)
+    }
+}
+
+fn as_card(line: &str) -> Card {
+    let (card, numbers) = line.split_once(": ").unwrap();
+    let card_number: u32 = card.strip_prefix("Card ").unwrap().trim().parse().unwrap();
+
+    let (win_str, card_str): (HashMap<&str, bool>, Vec<&str>) = {
+        let strs = numbers.split_once(" | ").unwrap();
+        (
+            strs.0.split_whitespace().map(|key| (key, true)).collect(),
+            strs.1.split_whitespace().collect(),
+        )
+    };
+
+    Card {
+        id: card_number,
+        win_nums: win_str,
+        card_nums: card_str,
+    }
+}
+
 pub fn part_one(input: &str) -> Option<u32> {
     Some(
         input
             .lines()
-            .map(|line| {
-                let (card, numbers) = line.split_once(": ").unwrap();
-                let card_number: u32 = card.strip_prefix("Card ").unwrap().trim().parse().unwrap();
-
-                let (win_str, card_str): (HashMap<&str, bool>, Vec<&str>) = {
-                    let strs = numbers.split_once(" | ").unwrap();
-                    (
-                        strs.0.split_whitespace().map(|key| (key, true)).collect(),
-                        strs.1.split_whitespace().collect(),
-                    )
-                };
-
-                Card {
-                    id: card_number,
-                    win_nums: win_str,
-                    card_nums: card_str,
-                }
-            })
-            .map(|card| {
-                card.card_nums
-                    .into_iter()
-                    .filter(|num| card.win_nums.get(num).is_some())
-                    .collect::<Vec<&str>>()
-                    .len()
-            })
-            .map(|matches| {
-                let mut score: u32 = 0;
-
-                for _ in 0..matches {
-                    if score == 0 {
-                        score = 1;
-                    } else {
-                        score *= 2;
-                    }
-                }
-
-                score
+            .map(as_card)
+            .map(|card| card.points())
+            .map(|matches| match matches.checked_sub(1) {
+                Some(num) => 2u32.pow(num),
+                None => 0,
             })
             .sum(),
     )
@@ -61,37 +64,13 @@ pub fn part_two(input: &str) -> Option<u32> {
     Some(
         input
             .lines()
-            .map(|line| {
-                let (card, numbers) = line.split_once(": ").unwrap();
-                let card_number: u32 = card.strip_prefix("Card ").unwrap().trim().parse().unwrap();
-
-                let (win_str, card_str): (HashMap<&str, bool>, Vec<&str>) = {
-                    let strs = numbers.split_once(" | ").unwrap();
-                    (
-                        strs.0.split_whitespace().map(|key| (key, true)).collect(),
-                        strs.1.split_whitespace().collect(),
-                    )
-                };
-
-                Card {
-                    id: card_number,
-                    win_nums: win_str,
-                    card_nums: card_str,
-                }
-            })
+            .map(as_card)
             .map(|card| {
-                let points: u32 = card
-                    .card_nums
-                    .into_iter()
-                    .filter(|num| card.win_nums.get(num).is_some())
-                    .collect::<Vec<&str>>()
-                    .len() as u32;
-
                 // how many copies do we have of this card?
                 let card_copies = *copies.get(&(card.id)).unwrap_or(&1);
 
                 // add copies that we won
-                for i in 1..points + 1 {
+                for i in 1..card.points() + 1 {
                     let copy = copies.get(&(card.id + i)).unwrap_or(&1);
                     copies.insert(card.id + i, copy + card_copies);
                 }
