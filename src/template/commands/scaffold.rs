@@ -8,10 +8,14 @@ use crate::Day;
 
 const MODULE_TEMPLATE: &str = r#"advent_of_code::solution!(DAY_NUMBER);
 
+#[allow(unused_variables)]
+#[allow(unused_must_use)]
 pub fn part_one(input: &str) -> Option<u32> {
     None
 }
 
+#[allow(unused_variables)]
+#[allow(unused_must_use)]
 pub fn part_two(input: &str) -> Option<u32> {
     None
 }
@@ -20,15 +24,17 @@ pub fn part_two(input: &str) -> Option<u32> {
 mod tests {
     use super::*;
 
+    const EXAMPLE: &str = "";
+
     #[test]
     fn test_part_one() {
-        let result = part_one(&advent_of_code::template::read_file("examples", DAY));
+        let result = part_one(EXAMPLE);
         assert_eq!(result, None);
     }
 
     #[test]
     fn test_part_two() {
-        let result = part_two(&advent_of_code::template::read_file("examples", DAY));
+        let result = part_two(EXAMPLE);
         assert_eq!(result, None);
     }
 }
