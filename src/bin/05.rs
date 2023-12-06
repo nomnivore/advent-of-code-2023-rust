@@ -1,51 +1,43 @@
-use std::collections::HashMap;
-
 use parsers::parse_input;
 
 advent_of_code::solution!(5);
 
-#[allow(dead_code)]
-#[allow(unused_imports)]
 mod parsers {
-    use super::*;
 
     use nom::{
         branch::alt,
-        bytes::complete::{is_a, tag, take_until, take_while1},
-        character::{
-            complete::{digit1, line_ending, newline, space0, space1},
-            is_alphabetic,
-        },
-        combinator::{eof, map},
-        multi::{count, many0, many1},
+        bytes::complete::{tag, take_until},
+        character::complete::{digit1, line_ending, newline, space0, space1},
+        combinator::eof,
+        multi::{many0, many1},
         sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
         IResult,
     };
 
-    fn parse_u32(input: &str) -> IResult<&str, u32> {
+    fn parse_usize(input: &str) -> IResult<&str, usize> {
         digit1(input).map(|(input, value)| (input, value.parse().unwrap()))
     }
 
-    pub fn parse_header(input: &str) -> IResult<&str, Vec<u32>> {
-        let numbers = many1(delimited(space0, parse_u32, space0));
+    pub fn parse_header(input: &str) -> IResult<&str, Vec<usize>> {
+        let numbers = many1(delimited(space0, parse_usize, space0));
         preceded(pair(tag("seeds:"), space1), numbers)(input)
     }
 
     pub type ChartTitle<'a> = (&'a str, &'a str);
-    pub type Mapping = (u32, u32, u32);
-    pub type SeedsToPlant = Vec<u32>;
+    pub type Mapping = (usize, usize, usize);
+    pub type SeedsToPlant = Vec<usize>;
     pub type Chart<'a> = (ChartTitle<'a>, Vec<Mapping>);
     pub fn parse_map(input: &str) -> IResult<&str, (ChartTitle, Vec<Mapping>)> {
         let from = take_until("-");
         let to = take_until(" ");
-        let delimited_u32 = |i| delimited(space0, parse_u32, space0)(i);
+        let delimited_usize = |i| delimited(space0, parse_usize, space0)(i);
         pair(
             terminated(
                 separated_pair(from, tag("-to-"), to),
                 pair(tag(" map:"), line_ending),
             ),
             many1(terminated(
-                tuple((delimited_u32, delimited_u32, delimited_u32)),
+                tuple((delimited_usize, delimited_usize, delimited_usize)),
                 alt((line_ending, eof)),
             )),
         )(input)
@@ -60,42 +52,79 @@ mod parsers {
     }
 }
 
-struct ABChart<'a> {
-    from: &'a str,
-    to: &'a str,
-    mappings: Vec<(u32, u32, u32)>,
+struct Chart {
+    mappings: Vec<ChartMapping>,
 }
 
-fn prepare(input: &str) -> (Vec<u32>, HashMap<(&str, &str), ABChart>) {
+impl Chart {
+    fn convert(&self, num: usize) -> usize {
+        self.mappings
+            .iter()
+            .find_map(|x| x.convert(num))
+            .unwrap_or(num)
+    }
+}
+
+struct ChartMapping {
+    source: usize,
+    dest: usize,
+    range: usize,
+}
+
+impl ChartMapping {
+    fn in_range(&self, num: usize) -> bool {
+        self.source <= num && num < self.source + self.range
+    }
+
+    fn convert(&self, num: usize) -> Option<usize> {
+        self.in_range(num).then(|| {
+            // get difference
+            let diff = num - self.source;
+
+            self.dest + diff
+        })
+    }
+}
+
+impl From<(usize, usize, usize)> for ChartMapping {
+    fn from(tuple: (usize, usize, usize)) -> Self {
+        Self {
+            dest: tuple.0,
+            source: tuple.1,
+            range: tuple.2,
+        }
+    }
+}
+
+fn prepare(input: &str) -> (Vec<usize>, Vec<Chart>) {
     let (_, (seeds, charts)) = parse_input(input).unwrap();
 
-    let mut map = HashMap::new();
-
-    charts.into_iter().for_each(|(key, chart)| {
-        map.insert(
-            key,
-            ABChart {
-                from: key.0,
-                to: key.1,
-                mappings: chart,
-            },
-        );
-    });
+    let map = charts
+        .into_iter()
+        .map(|(key, chart)| Chart {
+            mappings: chart.into_iter().map(ChartMapping::from).collect(),
+        })
+        .collect();
 
     (seeds, map)
 }
 
 #[allow(unused_variables)]
 #[allow(unused_must_use)]
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one(input: &str) -> Option<usize> {
     let (seeds, maps) = prepare(input);
 
-    None
+    let x = seeds
+        .into_iter()
+        .map(|seed| maps.iter().fold(seed, |n, chart| chart.convert(n)))
+        .min();
+
+    x
 }
 
 #[allow(unused_variables)]
 #[allow(unused_must_use)]
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> Option<usize> {
     None
 }
 
@@ -114,7 +143,7 @@ mod tests {
     #[test]
     fn test_parse_map() {
         let (input, ((from, to), mappings)) = parse_map(
-            "seeds-to-soil map:
+            "abc-to-xyzhjkl map:
 1 2 3
 4 5 6
 ",
@@ -122,18 +151,25 @@ mod tests {
         .unwrap();
 
         assert_eq!(input, "");
-        assert_eq!(from, "seeds");
-        assert_eq!(to, "soil");
+        assert_eq!(from, "abc");
+        assert_eq!(to, "xyzhjkl");
         assert_eq!(mappings, [(1, 2, 3), (4, 5, 6)]);
     }
 
     #[test]
     fn test_parse_input() {
-        let (input, all) = parse_input(EXAMPLE).unwrap();
+        let (input, (seeds, maps)) = parse_input(EXAMPLE).unwrap();
 
-        dbg!(all);
-
-        assert_eq!(true, false);
+        // not exhaustive testing but should be enough to check what we need to
+        assert_eq!(input, "");
+        assert_eq!(seeds, [79, 14, 55, 13]);
+        assert_eq!(maps.len(), 7);
+        assert_eq!(maps.first().unwrap().0, ("seed", "soil"));
+        assert_eq!(maps.last().unwrap().0, ("humidity", "location"));
+        assert_eq!(
+            maps.last().unwrap().1.first().unwrap(),
+            &(60usize, 56usize, 37usize)
+        );
     }
 
     const EXAMPLE: &str = "seeds: 79 14 55 13
@@ -173,7 +209,7 @@ humidity-to-location map:
     #[test]
     fn test_part_one() {
         let result = part_one(EXAMPLE);
-        assert_eq!(result, None);
+        assert_eq!(result, Some(35));
     }
 
     // #[test]
