@@ -63,31 +63,40 @@ fn prepare(input: &str) -> Zip<IntoIter<u64>, IntoIter<u64>> {
     zip(time, dist)
 }
 
+fn is_winning(hold: &u64, time: &u64, dist: &u64) -> bool {
+    let remain = time - hold;
+
+    &(hold * remain) > dist
+}
+
 #[allow(unused_variables)]
 #[allow(unused_must_use)]
 pub fn part_one(input: &str) -> Option<u64> {
     let races = prepare(input);
 
     // brute force approach
-    let result: usize = races
+    let result = races
         .map(|race| {
             // convert race into # of ways to win
             let (time, dist) = race;
 
             // 0 & race.time are guaranteed losses
 
-            (1..time)
-                .filter(|hold| {
-                    let time_remaining = time - hold;
+            let mut wins: u64 = 0;
+            // hand roll for loop for short-circuiting
+            for hold in 1..time {
+                if is_winning(&hold, &time, &dist) {
+                    wins += 1
+                } else if wins > 0 {
+                    break;
+                }
+            }
 
-                    hold * time_remaining > dist
-                })
-                .collect::<Vec<u64>>()
-                .len()
+            wins
         })
         .product();
 
-    Some(result as u64)
+    Some(result)
 }
 
 #[allow(unused_variables)]
@@ -98,18 +107,17 @@ pub fn part_two(input: &str) -> Option<u64> {
     // again, brute force
     // its slow but not as slow as yesterday. could optimize with binary search?
 
-    let result: u64 = (1..time)
-        .filter(|hold| {
-            let remaining = time - hold;
+    let mut wins: u64 = 0;
+    // hand roll for loop for short-circuiting
+    for hold in 1..time {
+        if is_winning(&hold, &time, &dist) {
+            wins += 1
+        } else if wins > 0 {
+            break;
+        }
+    }
 
-            hold * remaining > dist
-        })
-        .collect::<Vec<u64>>()
-        .len()
-        .try_into()
-        .unwrap();
-
-    Some(result)
+    Some(wins)
 }
 
 #[cfg(test)]
