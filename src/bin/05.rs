@@ -1,4 +1,4 @@
-use parsers::parse_input;
+use parsers::{parse_input, parse_input_2, SeedTuples};
 
 advent_of_code::solution!(5);
 
@@ -43,12 +43,27 @@ mod parsers {
         )(input)
     }
 
+    pub fn parse_body(input: &str) -> IResult<&str, Vec<Chart>> {
+        many1(delimited(many0(line_ending), parse_map, many0(line_ending)))(input)
+    }
+
     pub fn parse_input(input: &str) -> IResult<&str, (SeedsToPlant, Vec<Chart>)> {
-        separated_pair(
-            parse_header,
-            many0(newline),
-            many1(delimited(many0(line_ending), parse_map, many0(line_ending))),
-        )(input)
+        separated_pair(parse_header, many0(newline), parse_body)(input)
+    }
+
+    pub fn parse_header_2(input: &str) -> IResult<&str, Vec<(usize, usize)>> {
+        let numbers = many1(delimited(
+            alt((line_ending, space0)),
+            separated_pair(parse_usize, space1, parse_usize),
+            alt((line_ending, space0)),
+        ));
+
+        preceded(pair(tag("seeds:"), space1), numbers)(input)
+    }
+
+    pub type SeedTuples = Vec<(usize, usize)>;
+    pub fn parse_input_2(input: &str) -> IResult<&str, (SeedTuples, Vec<Chart>)> {
+        separated_pair(parse_header_2, many0(line_ending), parse_body)(input)
     }
 }
 
@@ -101,7 +116,20 @@ fn prepare(input: &str) -> (Vec<usize>, Vec<Chart>) {
 
     let map = charts
         .into_iter()
-        .map(|(key, chart)| Chart {
+        .map(|(_, chart)| Chart {
+            mappings: chart.into_iter().map(ChartMapping::from).collect(),
+        })
+        .collect();
+
+    (seeds, map)
+}
+
+fn prepare_2(input: &str) -> (SeedTuples, Vec<Chart>) {
+    let (_, (seeds, charts)) = parse_input_2(input).unwrap();
+
+    let map = charts
+        .into_iter()
+        .map(|(_, chart)| Chart {
             mappings: chart.into_iter().map(ChartMapping::from).collect(),
         })
         .collect();
@@ -114,18 +142,27 @@ fn prepare(input: &str) -> (Vec<usize>, Vec<Chart>) {
 pub fn part_one(input: &str) -> Option<usize> {
     let (seeds, maps) = prepare(input);
 
-    let x = seeds
+    seeds
         .into_iter()
         .map(|seed| maps.iter().fold(seed, |n, chart| chart.convert(n)))
-        .min();
-
-    x
+        .min()
 }
 
 #[allow(unused_variables)]
 #[allow(unused_must_use)]
 pub fn part_two(input: &str) -> Option<usize> {
-    None
+    let (seeds, maps) = prepare_2(input);
+
+    seeds
+        .into_iter()
+        .map(|(start, range)| {
+            let values: Vec<usize> = (start..start + range).collect();
+            (start..start + range)
+                .map(|seed| maps.iter().fold(seed, |n, chart| chart.convert(n)))
+                .min()
+        })
+        .min()
+        .unwrap()
 }
 
 #[cfg(test)]
@@ -212,9 +249,9 @@ humidity-to-location map:
         assert_eq!(result, Some(35));
     }
 
-    // #[test]
-    // fn test_part_two() {
-    //     let result = part_two(EXAMPLE);
-    //     assert_eq!(result, None);
-    // }
+    #[test]
+    fn test_part_two() {
+        let result = part_two(EXAMPLE);
+        assert_eq!(result, Some(46));
+    }
 }
