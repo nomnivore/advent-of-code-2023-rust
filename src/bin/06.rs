@@ -69,8 +69,6 @@ fn is_winning(hold: &u64, time: &u64, dist: &u64) -> bool {
     &(hold * remain) > dist
 }
 
-#[allow(unused_variables)]
-#[allow(unused_must_use)]
 pub fn part_one(input: &str) -> Option<u64> {
     let races = prepare(input);
 
@@ -99,25 +97,21 @@ pub fn part_one(input: &str) -> Option<u64> {
     Some(result)
 }
 
-#[allow(unused_variables)]
-#[allow(unused_must_use)]
 pub fn part_two(input: &str) -> Option<u64> {
     let (_, (time, dist)) = parsers::parse_input_2(input).unwrap();
 
-    // again, brute force
-    // its slow but not as slow as yesterday. could optimize with binary search?
+    // quadratic formula solution
+    // fastest, but can't be applied 1:1 to example data (smaller numbers), might still implement a binary search
+    // solution for both
 
-    let mut wins: u64 = 0;
-    // hand roll for loop for short-circuiting
-    for hold in 1..time {
-        if is_winning(&hold, &time, &dist) {
-            wins += 1
-        } else if wins > 0 {
-            break;
-        }
-    }
+    let a = 1.;
+    let b = 0.0 - time as f64;
+    let c = dist as f64;
 
-    Some(wins)
+    let x = ((0. - b) - (b.powf(2.) - (4. * a * c)).sqrt()) / (2.0 * a);
+    let y = ((0. - b) + (b.powf(2.) - (4. * a * c)).sqrt()) / (2.0 * a);
+
+    Some((y.floor() as u64 + 1) - (x.ceil() as u64))
 }
 
 #[cfg(test)]
