@@ -7,31 +7,31 @@ advent_of_code::solution!(7);
 #[allow(dead_code)]
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Clone, Copy)]
 enum Card {
-    A,
-    K,
-    Q,
-    J,
-    T,
-    N9,
-    N8,
-    N7,
-    N6,
-    N5,
-    N4,
-    N3,
     N2,
+    N3,
+    N4,
+    N5,
+    N6,
+    N7,
+    N8,
+    N9,
+    T,
+    J,
+    Q,
+    K,
+    A,
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord)]
 enum HandType {
-    FiveKind,
-    FourKind,
-    FullHouse,
-    ThreeKind,
-    TwoPair,
-    OnePair,
     HighCard,
+    OnePair,
+    TwoPair,
+    ThreeKind,
+    FullHouse,
+    FourKind,
+    FiveKind,
 }
 
 pub type Game = (Hand, u32);
@@ -111,7 +111,7 @@ mod parsers {
 
     use nom::{
         character::complete::{anychar, line_ending, space1, u32},
-        combinator::{all_consuming, map},
+        combinator::map,
         multi::{fold_many_m_n, separated_list1},
         sequence::separated_pair,
         IResult,
@@ -140,6 +140,29 @@ mod parsers {
     }
 }
 
+fn hand_sorter((a, _): &Game, (b, _): &Game) -> Ordering {
+    let a_type = a.cached_type.as_ref().unwrap();
+    let b_type = b.cached_type.as_ref().unwrap();
+    match a_type.cmp(b_type) {
+        Ordering::Equal => {
+            // compare each card from left to right
+            // assume both vecs are same size
+            for (a, b) in a.vec.iter().zip(b.vec.iter()) {
+                match a.cmp(b) {
+                    Ordering::Equal => continue,
+                    Ordering::Less => return Ordering::Less,
+                    Ordering::Greater => return Ordering::Greater,
+                }
+            }
+
+            // realistically should never happen
+            Ordering::Equal
+        }
+        Ordering::Less => Ordering::Less,
+        Ordering::Greater => Ordering::Greater,
+    }
+}
+
 #[allow(unused_variables)]
 #[allow(unused_must_use)]
 pub fn part_one(input: &str) -> Option<u32> {
@@ -149,33 +172,11 @@ pub fn part_one(input: &str) -> Option<u32> {
         hand.cached_type = Some(hand.get_type());
     });
 
-    // TODO: use caching of get_type()
-    games.sort_by(|(a, _), (b, _)| {
-        //
-        match a.get_type().cmp(&b.get_type()) {
-            Ordering::Equal => {
-                // compare each card from left to right
-                // assume both vecs are same size
-                for (a, b) in a.vec.iter().zip(b.vec.iter()) {
-                    match a.cmp(b) {
-                        Ordering::Equal => continue,
-                        Ordering::Less => return Ordering::Less,
-                        Ordering::Greater => return Ordering::Greater,
-                    }
-                }
-
-                // realistically should never happen
-                Ordering::Equal
-            }
-            Ordering::Less => Ordering::Less,
-            Ordering::Greater => Ordering::Greater,
-        }
-    });
+    games.sort_by(hand_sorter);
 
     Some(
         games
             .iter()
-            .rev()
             .enumerate()
             .fold(0_u32, |acc, (i, (_, bet))| acc + (i as u32 + 1) * bet),
     )
