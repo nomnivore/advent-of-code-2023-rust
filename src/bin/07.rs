@@ -22,16 +22,28 @@ enum Card {
     A,
 }
 
+impl Card {
+    /// Compares two cards, with J as Joker being the lowest card (instead of as Jack)
+    fn joker_cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Self::J, Self::J) => Ordering::Equal,
+            (Self::J, _) => Ordering::Less,
+            (_, Self::J) => Ordering::Greater,
+            _ => self.cmp(other),
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord)]
 enum HandType {
-    HighCard,
-    OnePair,
-    TwoPair,
-    ThreeKind,
-    FullHouse,
-    FourKind,
-    FiveKind,
+    HighCard = 0,
+    OnePair = 1,
+    TwoPair = 2,
+    ThreeKind = 3,
+    FullHouse = 4,
+    FourKind = 5,
+    FiveKind = 6,
 }
 
 pub type Game = (Hand, u32);
@@ -53,7 +65,6 @@ impl Hand {
         }
     }
 
-    /// Get's the HandType of the Hand. If it hasn't been computed yet, it computes it, and then returns the computed result.
     fn get_type(&self) -> HandType {
         //
         // if self.cached_type.is_some() {
@@ -84,6 +95,47 @@ impl Hand {
         };
 
         hand_type.unwrap()
+    }
+
+    fn joker_get_type(&self) -> HandType {
+        // check for each type of hand, from top down
+        let card_types = self.map.keys().len();
+
+        let mut hand_type = match card_types {
+            1 => HandType::FiveKind,
+            2 => match self.map.values().collect::<Vec<&i8>>().first().unwrap() {
+                1 | 4 => HandType::FourKind,
+                2 | 3 => HandType::FullHouse,
+                _ => panic!("Unable to determine hand (Branch 2)"),
+            },
+            3 => {
+                // either threekind or twopair
+                if self.map.values().collect::<Vec<&i8>>().contains(&&2) {
+                    HandType::TwoPair
+                } else {
+                    HandType::ThreeKind
+                }
+            }
+            4 => HandType::OnePair,
+            5 => HandType::HighCard,
+            _ => panic!("Unable to determine hand"),
+        };
+
+        // count how many jokers, then increase hand type by that number
+        let joker_count = self.map.get(&Card::J).unwrap_or(&0);
+
+        if joker_count > &0 {
+            hand_type = match hand_type as i8 + joker_count {
+                0 => HandType::HighCard,
+                1 => HandType::OnePair,
+                2 => HandType::TwoPair,
+                3 => HandType::ThreeKind,
+                4 | 5 => HandType::FourKind, // maybe a bit of a cheat, but jokers will always prefer fourkind over fullhouse
+                _ => HandType::FiveKind,
+            }
+        }
+
+        hand_type
     }
 }
 
@@ -117,7 +169,7 @@ mod parsers {
         IResult,
     };
 
-    fn hand_parser(input: &str) -> IResult<&str, Hand> {
+    pub fn hand_parser(input: &str) -> IResult<&str, Hand> {
         fold_many_m_n(
             5,
             5,
@@ -163,6 +215,36 @@ fn hand_sorter((a, _): &Game, (b, _): &Game) -> Ordering {
     }
 }
 
+fn joker_hand_sorter((a, _): &Game, (b, _): &Game) -> Ordering {
+    let a_type = a.cached_type.as_ref().unwrap();
+    let b_type = b.cached_type.as_ref().unwrap();
+
+    match a_type.cmp(b_type) {
+        Ordering::Equal => {
+            // compare each card from left to right
+            // assume both vecs are same size
+            for (a, b) in a.vec.iter().zip(b.vec.iter()) {
+                match a.joker_cmp(b) {
+                    Ordering::Equal => continue,
+                    Ordering::Less => {
+                        // println!("\tOrdering: {:?}", Ordering::Less);
+                        return Ordering::Less;
+                    }
+                    Ordering::Greater => {
+                        // println!("\tOrdering: {:?}", Ordering::Less);
+                        return Ordering::Greater;
+                    }
+                }
+            }
+
+            // realistically should never happen with our input
+            Ordering::Equal
+        }
+        Ordering::Less => Ordering::Less,
+        Ordering::Greater => Ordering::Greater,
+    }
+}
+
 #[allow(unused_variables)]
 #[allow(unused_must_use)]
 pub fn part_one(input: &str) -> Option<u32> {
@@ -185,12 +267,29 @@ pub fn part_one(input: &str) -> Option<u32> {
 #[allow(unused_variables)]
 #[allow(unused_must_use)]
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let (_, mut games) = parse_input(input).unwrap();
+
+    games.iter_mut().for_each(|(hand, _)| {
+        hand.cached_type = Some(hand.joker_get_type());
+    });
+
+    games.sort_by(joker_hand_sorter);
+
+    Some(
+        games
+            .iter()
+            .enumerate()
+            .fold(0_u32, |acc, (i, (_, bet))| acc + (i as u32 + 1) * bet),
+    )
 }
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
+
+    use super::HandType::*;
 
     const EXAMPLE: &str = "32T3K 765
 T55J5 684
@@ -208,6 +307,37 @@ QQQJA 483";
     fn test_part_two() {
         let result = part_two(EXAMPLE);
 
-        assert_eq!(result, None);
+        assert_eq!(result, Some(5905));
+    }
+
+    #[rstest]
+    #[case("32T3K", OnePair)]
+    #[case("T55J5", FourKind)]
+    #[case("8234J", OnePair)]
+    #[case("JJJJJ", FiveKind)]
+    #[case("KKKKJ", FiveKind)]
+    #[case("KKKJJ", FiveKind)]
+    #[case("KKJJJ", FiveKind)]
+    #[case("KJJJJ", FiveKind)]
+    #[case("KKQJJ", FourKind)]
+    fn test_joker_type(#[case] hand: &str, #[case] expected: HandType) {
+        let (_, mut hand) = parsers::hand_parser(hand).unwrap();
+        hand.cached_type = Some(hand.joker_get_type());
+        assert_eq!(hand.cached_type.unwrap(), expected);
+    }
+
+    #[rstest]
+    #[case("J8KKK", "J8KKK", Ordering::Equal)]
+    #[case("J2345", "J3245", Ordering::Less)]
+    #[case("JJ345", "J3J45", Ordering::Less)]
+    #[case("JKKK2", "QQQQ2", Ordering::Less)]
+    #[case("KKKKJ", "2222J", Ordering::Greater)]
+    #[case("JJJ4J", "J4JJJ", Ordering::Less)]
+    fn test_joker_sorting(#[case] a: &str, #[case] b: &str, #[case] expected: Ordering) {
+        let (_, mut a) = parsers::hand_parser(a).unwrap();
+        let (_, mut b) = parsers::hand_parser(b).unwrap();
+        a.cached_type = Some(a.joker_get_type());
+        b.cached_type = Some(b.joker_get_type());
+        assert_eq!(joker_hand_sorter(&(a, 0), &(b, 0)), expected);
     }
 }
