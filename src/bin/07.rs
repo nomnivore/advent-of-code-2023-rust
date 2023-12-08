@@ -34,6 +34,27 @@ impl Card {
     }
 }
 
+impl std::fmt::Display for Card {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let c = match self {
+            Self::N2 => '2',
+            Self::N3 => '3',
+            Self::N4 => '4',
+            Self::N5 => '5',
+            Self::N6 => '6',
+            Self::N7 => '7',
+            Self::N8 => '8',
+            Self::N9 => '9',
+            Self::T => 'T',
+            Self::J => 'J',
+            Self::Q => 'Q',
+            Self::K => 'K',
+            Self::A => 'A',
+        };
+        write!(f, "{}", c)
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Eq, PartialEq, PartialOrd, Ord)]
 enum HandType {
@@ -99,18 +120,33 @@ impl Hand {
 
     fn joker_get_type(&self) -> HandType {
         // check for each type of hand, from top down
-        let card_types = self.map.keys().len();
+        let mut map = self.map.clone();
+        let joker_count = map.insert(Card::J, 0).unwrap_or(0);
 
-        let mut hand_type = match card_types {
+        // add joker_count to the card with the highest count
+        let key = map
+            .iter()
+            .collect::<Vec<(&Card, &i8)>>()
+            .iter()
+            .max_by(|(_, a), (_, b)| a.cmp(b))
+            .unwrap()
+            .0;
+
+        map.insert(*key, map.get(key).unwrap() + joker_count);
+        map.remove(&Card::J);
+
+        let card_types = map.keys().len();
+
+        let hand_type = match card_types {
             1 => HandType::FiveKind,
-            2 => match self.map.values().collect::<Vec<&i8>>().first().unwrap() {
+            2 => match map.values().collect::<Vec<&i8>>().first().unwrap() {
                 1 | 4 => HandType::FourKind,
                 2 | 3 => HandType::FullHouse,
                 _ => panic!("Unable to determine hand (Branch 2)"),
             },
             3 => {
                 // either threekind or twopair
-                if self.map.values().collect::<Vec<&i8>>().contains(&&2) {
+                if map.values().collect::<Vec<&i8>>().contains(&&2) {
                     HandType::TwoPair
                 } else {
                     HandType::ThreeKind
@@ -118,22 +154,9 @@ impl Hand {
             }
             4 => HandType::OnePair,
             5 => HandType::HighCard,
+            0 => HandType::FiveKind, // all jokers
             _ => panic!("Unable to determine hand"),
         };
-
-        // count how many jokers, then increase hand type by that number
-        let joker_count = self.map.get(&Card::J).unwrap_or(&0);
-
-        if joker_count > &0 {
-            hand_type = match hand_type as i8 + joker_count {
-                0 => HandType::HighCard,
-                1 => HandType::OnePair,
-                2 => HandType::TwoPair,
-                3 => HandType::ThreeKind,
-                4 | 5 => HandType::FourKind, // maybe a bit of a cheat, but jokers will always prefer fourkind over fullhouse
-                _ => HandType::FiveKind,
-            }
-        }
 
         hand_type
     }
@@ -275,12 +298,21 @@ pub fn part_two(input: &str) -> Option<u32> {
 
     games.sort_by(joker_hand_sorter);
 
-    Some(
-        games
-            .iter()
-            .enumerate()
-            .fold(0_u32, |acc, (i, (_, bet))| acc + (i as u32 + 1) * bet),
-    )
+    // for debugging
+    // games.iter().enumerate().for_each(|(idx, (hand, bet))| {
+    //     println!(
+    //         "{:?}:\t{}\t{:?}\t{:?}",
+    //         idx + 1,
+    //         hand.vec.iter().map(|c| c.to_string()).collect::<String>(),
+    //         bet,
+    //         hand.cached_type.as_ref().unwrap()
+    //     );
+    // });
+
+    Some(games.iter().enumerate().fold(0_u32, |acc, (i, (_, bet))| {
+        let mult = i as u32 + 1;
+        acc + (mult * bet)
+    }))
 }
 
 #[cfg(test)]
@@ -320,6 +352,8 @@ QQQJA 483";
     #[case("KKJJJ", FiveKind)]
     #[case("KJJJJ", FiveKind)]
     #[case("KKQJJ", FourKind)]
+    #[case("JT55T", FullHouse)]
+    #[case("J322A", ThreeKind)]
     fn test_joker_type(#[case] hand: &str, #[case] expected: HandType) {
         let (_, mut hand) = parsers::hand_parser(hand).unwrap();
         hand.cached_type = Some(hand.joker_get_type());
