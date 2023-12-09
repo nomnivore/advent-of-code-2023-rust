@@ -1,3 +1,4 @@
+use num::Integer;
 use std::collections::HashMap;
 
 use parsers::parse_input;
@@ -44,7 +45,7 @@ impl<'a> NodeMap<'a> {
 
 mod parsers {
     use nom::bytes::complete::tag;
-    use nom::character::complete::{alpha1, char, line_ending, space1};
+    use nom::character::complete::{alphanumeric1, char, line_ending, space1};
     use nom::combinator::{eof, map};
     use nom::multi::{fold_many1, many0, many1};
     use nom::sequence::{delimited, terminated};
@@ -67,11 +68,11 @@ mod parsers {
     pub fn parse_node(input: &str) -> IResult<&str, Node> {
         map(
             separated_pair(
-                alpha1,
+                alphanumeric1,
                 tag(" = "),
                 delimited(
                     char('('),
-                    separated_pair(alpha1, tag(", "), alpha1),
+                    separated_pair(alphanumeric1, tag(", "), alphanumeric1),
                     char(')'),
                 ),
             ),
@@ -130,10 +131,69 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(moves)
 }
 
+fn lcm_of(nums: Vec<u64>) -> u64 {
+    nums.into_iter().fold(1, |acc, num| acc.lcm(&num))
+}
+
 #[allow(unused_variables)]
 #[allow(unused_must_use)]
-pub fn part_two(input: &str) -> Option<u32> {
-    None
+pub fn part_two(input: &str) -> Option<u64> {
+    let map = create_map(input);
+
+    let length = map.dirs.len();
+
+    let paths: Vec<&Node> = map
+        .nodes
+        .iter()
+        .filter(|(label, node)| label.ends_with('A'))
+        .map(|(label, node)| node)
+        .collect();
+
+    let dists = paths
+        .into_iter()
+        .map(|path| {
+            let mut moves: u64 = 0;
+
+            let mut curr = path;
+
+            while !curr.label.ends_with('Z') {
+                let turn = map.dirs.get(moves as usize % length).unwrap();
+                curr = map.navigate(curr, turn);
+                moves += 1
+            }
+
+            moves
+        })
+        .collect::<Vec<u64>>();
+
+    // let mut dists = vec![];
+    //
+    // let mut stop = false;
+    // let num_paths = paths.len();
+    //
+    // while !stop {
+    //     let mut moves = 1;
+    //
+    //     for node in paths.iter_mut() {
+    //         let turn = map.dirs.get(moves as usize % length).unwrap();
+    //         let next = map.navigate(node, turn);
+    //         if next.label.ends_with('Z') {
+    //             dists.push(moves);
+    //         }
+    //
+    //         *node = next;
+    //
+    //         moves += 1;
+    //
+    //         // break out of while loop if all paths have reached Z
+    //         if dists.len() == num_paths {
+    //             stop = true;
+    //             break;
+    //         }
+    //     }
+    // }
+
+    Some(lcm_of(dbg!(dists)))
 }
 
 #[cfg(test)]
@@ -167,7 +227,19 @@ ZZZ = (ZZZ, ZZZ)";
 
     #[test]
     fn test_part_two() {
-        let result = part_two(EXAMPLE);
-        assert_eq!(result, None);
+        let result = part_two(
+            "LR
+
+11A = (11B, XXX)
+11B = (XXX, 11Z)
+11Z = (11B, XXX)
+22A = (22B, XXX)
+22B = (22C, 22C)
+22C = (22Z, 22Z)
+22Z = (22B, 22B)
+XXX = (XXX, XXX)",
+        );
+
+        assert_eq!(result, Some(6));
     }
 }
