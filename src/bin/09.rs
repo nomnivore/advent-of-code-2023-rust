@@ -67,8 +67,16 @@ pub fn part_one(input: &str) -> Option<i32> {
 
 #[allow(unused_variables)]
 #[allow(unused_must_use)]
-pub fn part_two(input: &str) -> Option<u32> {
-    None
+pub fn part_two(input: &str) -> Option<i32> {
+    let (_, sequences) = parse_input(input).unwrap();
+
+    Some(
+        sequences
+            .into_iter()
+            .map(|s| s.into_iter().rev().collect::<Vec<i32>>())
+            .map(|s| next_num(&s))
+            .sum(),
+    )
 }
 
 #[cfg(test)]
@@ -110,6 +118,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(EXAMPLE);
-        assert_eq!(result, None);
+        assert_eq!(result, Some(2));
     }
 }
